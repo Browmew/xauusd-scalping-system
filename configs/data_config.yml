@@ -1,0 +1,118 @@
+# Data Configuration for XAUUSD Scalping System
+
+# Data Sources
+sources:
+  primary:
+    provider: "cme"
+    symbol: "GC"  # CME Gold Futures
+    exchange: "COMEX"
+  
+  cross_assets:
+    - symbol: "DXY"
+      source: "ice"
+    - symbol: "TIPS"
+      source: "treasury"
+    - symbol: "SPY" 
+      source: "nyse"
+  
+  news_calendar:
+    provider: "forexfactory"
+    importance_filter: ["high", "medium"]
+    impact_window_minutes: 5
+
+# Data Collection
+collection:
+  start_date: "2019-01-01"
+  end_date: null  # null = current date
+  
+  tick_data:
+    enabled: true
+    fields: ["timestamp", "price", "volume", "side"]
+    compression: "lz4"
+    storage_format: "parquet"
+    
+  orderbook_data:
+    enabled: true
+    levels: 5
+    fields: ["timestamp", "bid_prices", "bid_sizes", "ask_prices", "ask_sizes"]
+    snapshot_frequency_ms: 100
+    
+  minute_bars:
+    enabled: true
+    aggregations: ["1min", "5min", "15min"]
+    
+# Data Quality
+quality:
+  max_gap_seconds: 10
+  min_volume_threshold: 0.01
+  outlier_detection:
+    zscore_threshold: 5.0
+    price_move_limit_pct: 2.0
+    
+  cleaning_rules:
+    remove_weekends: true
+    remove_holidays: true
+    remove_extended_hours: false
+    
+# Storage Configuration  
+storage:
+  base_path: "./data"
+  raw_data_retention_days: 90
+  processed_data_retention_days: 365
+  
+  database:
+    type: "timescaledb"
+    host: "localhost"
+    port: 5432
+    database: "xauusd_data"
+    
+  cache:
+    type: "redis"
+    host: "localhost"
+    port: 6379
+    ttl_seconds: 3600
+    
+# Processing
+processing:
+  chunk_size_rows: 1000000
+  parallel_workers: 8
+  memory_limit_gb: 32
+  
+  resampling:
+    method: "time_weighted"
+    fill_method: "forward"
+    max_fill_gaps: 3
+    
+# Data Validation
+validation:
+  schema_validation: true
+  timestamp_monotonic: true
+  price_range_check: true
+  volume_sanity_check: true
+  
+  alerts:
+    missing_data_threshold_pct: 5.0
+    latency_threshold_ms: 1000
+    
+# Market Sessions
+sessions:
+  london:
+    start_utc: "08:00"
+    end_utc: "17:00"
+    timezone: "Europe/London"
+    
+  new_york:
+    start_utc: "13:00" 
+    end_utc: "22:00"
+    timezone: "America/New_York"
+    
+  tokyo:
+    start_utc: "23:00"
+    end_utc: "08:00"
+    timezone: "Asia/Tokyo"
+    
+  overlap_periods:
+    london_ny:
+      start_utc: "13:00"
+      end_utc: "17:00"
+      priority: "high"

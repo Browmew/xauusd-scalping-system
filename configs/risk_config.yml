@@ -1,0 +1,389 @@
+# Risk Management Configuration
+
+# Position Sizing (Kelly Criterion from research)
+position_sizing:
+  method: "kelly_fraction"
+  
+  # Kelly Calculation
+  kelly:
+    lookback_periods: 100
+    multiplier: 0.25          # Quarter Kelly for safety
+    min_edge_threshold: 0.05  # Minimum 5% edge required
+    max_position_pct: 0.02    # Never exceed 2% of capital
+    
+  # Fallback Methods
+  fallback:
+    fixed_fractional: 0.01
+    volatility_scaled: true
+    atr_based: true
+    
+  # Constraints
+  constraints:
+    min_position_size: 0.01   # 0.01 lots minimum
+    max_position_size: 1.0    # 1 lot maximum
+    max_leverage: 10.0
+    margin_requirement: 0.10
+
+# Stop Loss Management (1 x ATR from research)
+stop_loss:
+  # Primary Method
+  method: "atr_multiple"
+  atr_multiple: 1.0
+  atr_period: 14
+  
+  # Constraints
+  min_stop_pips: 5
+  max_stop_pips: 20
+  
+  # Dynamic Adjustment
+  dynamic_adjustment:
+    enabled: true
+    volatility_scaling: true
+    time_decay: false
+    
+  # Trail Stop
+  trailing_stop:
+    enabled: false
+    trail_amount_pips: 5
+    trigger_profit_pips: 10
+
+# Take Profit Management (1.5 x ATR from research)
+take_profit:
+  # Primary Method
+  method: "atr_multiple"
+  atr_multiple: 1.5
+  atr_period: 14
+  
+  # Constraints
+  min_tp_pips: 10
+  max_tp_pips: 30
+  
+  # Partial Profits
+  partial_profits:
+    enabled: true
+    levels:
+      - profit_pips: 10
+        close_percentage: 0.25
+      - profit_pips: 15
+        close_percentage: 0.50
+
+# Daily Risk Limits
+daily_limits:
+  # Loss Limits
+  max_daily_loss_pct: 0.02     # 2% daily loss limit
+  max_daily_loss_absolute: 2000
+  
+  # Trade Limits
+  max_trades_per_day: 50
+  max_consecutive_losses: 5
+  
+  # Turnover Limits
+  max_daily_turnover: 1000000  # $1M
+  max_position_turnover: 5.0   # 5x position size
+  
+  # Reset Time
+  reset_time_utc: "00:00"
+
+# Weekly/Monthly Limits
+periodic_limits:
+  # Weekly Limits
+  weekly:
+    max_loss_pct: 0.05         # 5% weekly loss
+    max_trades: 200
+    
+  # Monthly Limits  
+  monthly:
+    max_loss_pct: 0.10         # 10% monthly loss
+    max_drawdown_pct: 0.08     # 8% max drawdown
+    
+# Correlation Risk
+correlation:
+  # Position Correlation
+  max_position_correlation: 0.5
+  correlation_lookback: 30
+  
+  # Cross-Asset Correlation
+  cross_asset_limits:
+    max_dxy_correlation: 0.8
+    max_spy_correlation: 0.3
+    
+  # Time-based Correlation
+  intraday_correlation_limit: 0.7
+
+# Concentration Risk
+concentration:
+  # Single Position
+  max_single_position_pct: 0.05  # 5% of capital
+  
+  # Sector/Theme
+  max_theme_exposure_pct: 0.20
+  
+  # Time Concentration
+  max_trades_per_hour: 10
+  max_trades_per_minute: 2
+
+# Drawdown Management
+drawdown:
+  # Drawdown Limits
+  max_peak_to_valley_pct: 0.05   # 5% max drawdown
+  max_underwater_days: 10
+  
+  # Recovery Requirements
+  min_recovery_ratio: 1.5        # Must recover 1.5x the drawdown
+  recovery_timeout_days: 30
+  
+  # Circuit Breakers
+  circuit_breakers:
+    drawdown_3pct: "reduce_size"
+    drawdown_4pct: "pause_trading"
+    drawdown_5pct: "stop_trading"
+
+# Session-Based Risk (Critical per research)
+session_risk:
+  # Allowed Sessions
+  allowed_sessions:
+    london:
+      enabled: true
+      start_utc: "08:00"
+      end_utc: "17:00"
+      max_risk_pct: 0.015       # 1.5% risk in London
+      
+    new_york:
+      enabled: true
+      start_utc: "13:00" 
+      end_utc: "22:00"
+      max_risk_pct: 0.015       # 1.5% risk in NY
+      
+    overlap:
+      enabled: true
+      start_utc: "13:00"
+      end_utc: "17:00" 
+      max_risk_pct: 0.020       # 2% risk in overlap (highest edge)
+      priority: true
+      
+  # Blocked Sessions
+  blocked_sessions:
+    asian:
+      start_utc: "23:00"
+      end_utc: "08:00"
+      reason: "low_edge_per_research"
+      
+    weekend:
+      enabled: true
+      reason: "market_closed"
+
+# News Risk Management (±5 min blackout per research)
+news_risk:
+  # News Blackout
+  blackout:
+    enabled: true
+    before_minutes: 5
+    after_minutes: 5
+    
+  # News Impact Levels
+  impact_levels:
+    high:
+      blackout_minutes: 5
+      position_reduction: 0.5
+      
+    medium:
+      blackout_minutes: 3
+      position_reduction: 0.25
+      
+    low:
+      blackout_minutes: 0
+      position_reduction: 0.0
+      
+  # Auto-Resume
+  auto_resume: true
+  manual_override: false
+
+# Volatility Risk
+volatility_risk:
+  # Volatility Filters
+  max_gkyz_multiplier: 3.0      # 3x normal volatility
+  min_gkyz_threshold: 0.5       # Minimum volatility for trading
+  
+  # Volatility Scaling
+  position_scaling:
+    enabled: true
+    inverse_vol_scaling: true
+    vol_lookback: 20
+    
+  # Regime Detection
+  regime_detection:
+    enabled: true
+    high_vol_threshold_percentile: 75
+    low_vol_threshold_percentile: 25
+
+# Liquidity Risk
+liquidity_risk:
+  # Spread Limits
+  max_spread_pips: 5.0
+  max_spread_multiple: 3.0      # 3x average spread
+  
+  # Volume Thresholds
+  min_volume_threshold: 100
+  min_volume_multiple: 0.5      # 50% of average volume
+  
+  # Market Depth
+  min_book_depth_lots: 10
+  book_imbalance_threshold: 0.8
+
+# Technology Risk
+technology_risk:
+  # Latency Limits
+  max_latency_ms: 100           # 2x target latency
+  max_feed_delay_ms: 1000
+  
+  # System Health
+  min_cpu_threshold_pct: 20     # Stop if CPU usage > 80%
+  min_memory_threshold_mb: 500  # Stop if memory < 500MB
+  
+  # Connectivity
+  max_disconnection_seconds: 30
+  heartbeat_timeout_seconds: 60
+
+# Model Risk
+model_risk:
+  # Performance Degradation
+  min_hit_rate: 0.55            # Stop if hit rate < 55%
+  min_sharpe_ratio: 0.5         # Stop if Sharpe < 0.5
+  max_consecutive_losses: 8
+  
+  # Prediction Quality
+  min_prediction_confidence: 0.6
+  max_feature_staleness_seconds: 300
+  
+  # Model Validation
+  daily_validation: true
+  rolling_validation_window: 30
+
+# Operational Risk
+operational_risk:
+  # Trading Hours
+  enforce_trading_hours: true
+  emergency_stop_enabled: true
+  
+  # Position Monitoring
+  position_reconciliation: true
+  reconciliation_frequency_minutes: 15
+  
+  # Backup Systems
+  failover_enabled: false
+  backup_execution_enabled: false
+
+# Regulatory Risk
+regulatory_risk:
+  # Position Reporting
+  position_reporting_enabled: true
+  reporting_threshold_usd: 10000
+  
+  # Trade Reporting
+  trade_reporting_enabled: true
+  mifid_compliance: false
+  
+  # Audit Trail
+  audit_trail_enabled: true
+  immutable_logs: true
+
+# Risk Monitoring & Alerting
+monitoring:
+  # Real-time Monitoring
+  real_time_alerts: true
+  alert_frequency_seconds: 10
+  
+  # Alert Thresholds
+  thresholds:
+    position_size_warning: 0.015    # Warn at 1.5%
+    position_size_critical: 0.018   # Critical at 1.8%
+    drawdown_warning: 0.03          # Warn at 3%
+    drawdown_critical: 0.04         # Critical at 4%
+    
+  # Alert Channels
+  alerts:
+    console: true
+    email: true
+    slack: false
+    pagerduty: false
+    
+  # Alert Throttling
+  throttling:
+    max_alerts_per_minute: 5
+    repeat_delay_minutes: 15
+
+# Risk Reporting
+reporting:
+  # Daily Risk Report
+  daily_report:
+    enabled: true
+    generation_time_utc: "17:30"
+    
+  # Risk Metrics
+  metrics:
+    - "var_95"
+    - "expected_shortfall"
+    - "maximum_drawdown"
+    - "position_concentration"
+    - "correlation_risk"
+    - "leverage_ratio"
+    
+  # Risk Attribution
+  attribution:
+    factor_attribution: true
+    time_attribution: true
+    strategy_attribution: true
+
+# Emergency Procedures
+emergency:
+  # Emergency Stop
+  emergency_stop:
+    enabled: true
+    trigger_conditions:
+      - "system_failure"
+      - "feed_failure"
+      - "risk_breach"
+      - "manual_trigger"
+      
+  # Position Liquidation
+  liquidation:
+    auto_liquidation: true
+    liquidation_method: "market_order"
+    max_liquidation_time_minutes: 5
+    
+  # Recovery Procedures
+  recovery:
+    manual_approval_required: true
+    risk_committee_approval: false
+    
+# Backtesting Risk Parameters
+backtesting:
+  # Stress Testing
+  stress_scenarios:
+    - name: "2008_financial_crisis"
+      volatility_multiplier: 3.0
+      correlation_multiplier: 2.0
+      
+    - name: "flash_crash"
+      price_gap_pct: 0.05
+      liquidity_reduction: 0.5
+      
+  # Monte Carlo
+  monte_carlo:
+    enabled: true
+    n_simulations: 1000
+    confidence_levels: [0.95, 0.99]
+    
+# Risk Model Calibration
+calibration:
+  # Frequency
+  recalibration_frequency: "monthly"
+  
+  # Validation
+  out_of_sample_validation: true
+  validation_period_months: 3
+  
+  # Model Selection
+  var_model: "historical_simulation"
+  correlation_model: "ewma"
+  volatility_model: "garch"

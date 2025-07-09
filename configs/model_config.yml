@@ -1,0 +1,296 @@
+# Model Configuration for XAUUSD Scalping System
+
+# Model Stack Architecture
+architecture:
+  primary_model: "lightgbm"  # Fast, explainable baseline
+  ensemble_models: ["xgboost", "lstm"]
+  meta_learner: "stacking"   # Stacking meta-learner for ensemble
+  
+  ensemble_weights:
+    lightgbm: 0.4
+    xgboost: 0.35  
+    lstm: 0.25
+
+# Training Configuration
+training:
+  target_type: "binary_classification"  # Binary scalp target
+  label_horizon_minutes: 5
+  
+  # Walk-forward validation
+  validation_method: "walk_forward"
+  initial_train_months: 12
+  retrain_frequency: "monthly"
+  validation_split: 0.2
+  
+  # Cross-validation
+  cv_folds: 5
+  cv_method: "time_series_split"
+  purging_minutes: 30  # Purge between train/test
+  
+  # Data splits
+  train_start: "2019-01-01"
+  train_end: "2023-12-31"
+  test_start: "2024-01-01"
+  test_end: null  # Current date
+
+# Target Engineering
+target:
+  scalp_target:
+    method: "forward_return"
+    horizon_minutes: 5
+    threshold_pips: 15  # Minimum profitable move
+    
+  labeling:
+    method: "triple_barrier"
+    profit_target_pips: 15
+    stop_loss_pips: 10
+    time_limit_minutes: 15
+    
+    # Advanced labeling (from research)
+    meta_labeling: true
+    sample_weights: "return_magnitude"
+    
+# LightGBM Configuration
+lightgbm:
+  # Core parameters
+  objective: "binary"
+  metric: "binary_logloss"
+  boosting_type: "gbdt"
+  num_leaves: 127
+  learning_rate: 0.05
+  feature_fraction: 0.8
+  bagging_fraction: 0.8
+  bagging_freq: 1
+  min_child_samples: 100
+  
+  # Regularization
+  reg_alpha: 0.1
+  reg_lambda: 0.1
+  min_split_gain: 0.1
+  
+  # Training
+  num_boost_round: 1000
+  early_stopping_rounds: 100
+  verbose: -1
+  
+  # Performance
+  n_jobs: -1
+  device_type: "cpu"  # GPU optional
+  
+# XGBoost Configuration  
+xgboost:
+  # Core parameters
+  objective: "binary:logistic"
+  eval_metric: "logloss"
+  booster: "gbtree"
+  max_depth: 6
+  learning_rate: 0.05
+  subsample: 0.8
+  colsample_bytree: 0.8
+  min_child_weight: 10
+  
+  # Regularization
+  reg_alpha: 0.1
+  reg_lambda: 0.1
+  gamma: 0.1
+  
+  # Training
+  n_estimators: 1000
+  early_stopping_rounds: 100
+  
+  # Performance
+  n_jobs: -1
+  tree_method: "auto"
+  gpu_id: 0  # Use GPU if available
+
+# LSTM Configuration
+lstm:
+  # Architecture
+  sequence_length: 60  # 1 hour of minute bars
+  hidden_size: 128
+  num_layers: 2
+  dropout: 0.2
+  bidirectional: false
+  
+  # Dense layers
+  dense_layers: [64, 32]
+  activation: "relu"
+  output_activation: "sigmoid"
+  
+  # Training
+  batch_size: 256
+  epochs: 100
+  learning_rate: 0.001
+  weight_decay: 1e-4
+  
+  # Optimization
+  optimizer: "adam"
+  scheduler: "reduce_on_plateau"
+  patience: 10
+  min_lr: 1e-6
+  
+  # Hardware
+  device: "cuda"  # Use GPU if available
+  mixed_precision: true
+  
+# Stacking Meta-Learner
+stacking:
+  meta_model: "logistic_regression"
+  cv_folds: 3
+  
+  # Meta-model parameters
+  logistic_regression:
+    C: 1.0
+    penalty: "l2"
+    solver: "liblinear"
+    random_state: 42
+    
+  # Feature engineering for meta-model
+  include_original_features: false
+  use_prediction_variance: true
+
+# Hyperparameter Optimization
+hyperparameter_optimization:
+  enabled: true
+  framework: "optuna"
+  
+  # Optimization settings
+  n_trials: 100
+  timeout_hours: 12
+  n_jobs: 4
+  
+  # Search spaces
+  lightgbm_search_space:
+    num_leaves: [31, 255]
+    learning_rate: [0.01, 0.3]
+    feature_fraction: [0.6, 1.0]
+    bagging_fraction: [0.6, 1.0]
+    min_child_samples: [10, 200]
+    reg_alpha: [0.0, 1.0]
+    reg_lambda: [0.0, 1.0]
+    
+  xgboost_search_space:
+    max_depth: [3, 10]
+    learning_rate: [0.01, 0.3]
+    subsample: [0.6, 1.0]
+    colsample_bytree: [0.6, 1.0]
+    min_child_weight: [1, 20]
+    reg_alpha: [0.0, 1.0]
+    reg_lambda: [0.0, 1.0]
+    
+  lstm_search_space:
+    hidden_size: [64, 256]
+    num_layers: [1, 3]
+    dropout: [0.1, 0.5]
+    learning_rate: [0.0001, 0.01]
+    batch_size: [128, 512]
+
+# Model Evaluation
+evaluation:
+  metrics:
+    classification:
+      - "accuracy"
+      - "precision"
+      - "recall"
+      - "f1_score"
+      - "roc_auc"
+      - "precision_recall_auc"
+      
+    financial:
+      - "hit_rate"
+      - "sharpe_ratio"
+      - "sortino_ratio"
+      - "max_drawdown"
+      - "profit_factor"
+      - "expectancy"
+      
+  # Threshold selection
+  threshold_optimization:
+    method: "youden_index"  # Maximize TPR - FPR
+    cv_folds: 5
+    
+  # Performance targets (from research synthesis)
+  targets:
+    min_hit_rate: 0.70  # 70% hit rate target
+    min_sharpe: 1.8     # Micro-Sharpe >= 1.8
+    min_profit_factor: 1.5
+    max_drawdown: 0.05  # 5% max drawdown
+
+# Model Deployment
+deployment:
+  model_format: "joblib"  # For LightGBM/XGBoost
+  pytorch_format: "torchscript"  # For LSTM
+  
+  versioning:
+    enabled: true
+    backend: "mlflow"
+    
+  monitoring:
+    drift_detection: true
+    performance_degradation_alert: true
+    
+  serving:
+    batch_inference: false
+    realtime_inference: true
+    max_latency_ms: 30
+    
+# Feature Importance & Explainability
+explainability:
+  shap:
+    enabled: true
+    explainer_type: "tree"  # For tree models
+    background_samples: 1000
+    
+    plots:
+      - "feature_importance"
+      - "summary_plot"
+      - "dependence_plot"
+      - "waterfall_plot"
+      
+  permutation_importance:
+    enabled: true
+    n_repeats: 10
+    random_state: 42
+    
+  lime:
+    enabled: false  # Optional for individual predictions
+    
+# Model Persistence
+persistence:
+  save_frequency: "after_training"
+  model_registry: "./data/models"
+  
+  # Compression
+  compress_models: true
+  compression_level: 9
+  
+  # Backup
+  backup_models: true
+  retention_months: 12
+
+# Performance Optimization
+optimization:
+  # Memory optimization
+  use_float32: true
+  sparse_features: true
+  
+  # Computation optimization
+  parallel_training: true
+  gpu_acceleration: true
+  
+  # Model serving optimization
+  model_quantization: false  # For production deployment
+  batch_prediction: true
+  
+# Logging & Monitoring
+logging:
+  level: "INFO"
+  log_predictions: false  # For debugging only
+  log_feature_importance: true
+  log_training_metrics: true
+  
+  # MLflow tracking
+  mlflow:
+    enabled: true
+    experiment_name: "xauusd_scalping"
+    tracking_uri: "./mlruns"

@@ -1,0 +1,298 @@
+# Backtesting Configuration
+
+# Test Period
+period:
+  start_date: "2023-01-01"
+  end_date: "2024-12-31"
+  warmup_periods: 100  # Bars for indicator initialization
+
+# Market Data
+data:
+  primary_timeframe: "1min"
+  tick_data: true  # For realistic fill simulation
+  orderbook_data: true
+  
+  # Data quality filters
+  min_volume: 0.01
+  max_spread_pips: 5.0
+  exclude_weekends: true
+  exclude_holidays: true
+
+# Execution Simulation
+execution:
+  # Fill Model
+  fill_model: "realistic"  # "immediate", "realistic", "conservative"
+  
+  # Latency simulation (from research: < 50ms target)
+  latency:
+    signal_to_order_ms: 10   # Strategy computation
+    order_to_fill_ms: 15     # Network + exchange
+    total_budget_ms: 50      # Total latency budget
+    latency_distribution: "normal"  # Add realistic jitter
+    
+  # Slippage Model
+  slippage:
+    model_type: "historical"  # Use historical distribution
+    base_slippage_pips: 0.5
+    volume_impact_factor: 0.1
+    volatility_multiplier: 1.5
+    
+  # Queue Position (for realistic fills)
+  queue_model:
+    enabled: true
+    queue_position: "back"  # Conservative assumption
+    fill_probability: 0.85  # 85% fill rate at limit
+
+# Cost Model (Critical per research synthesis)
+costs:
+  # Spread Costs  
+  spread:
+    model_type: "dynamic"    # Dynamic spread modeling
+    base_spread_pips: 1.0
+    volatility_multiplier: 2.0
+    session_multipliers:
+      london: 1.0
+      new_york: 1.0
+      overlap: 0.8           # Tighter spreads during overlap
+      asian: 1.5             # Wider spreads in Asian session
+      
+  # Commission (from research: $7 round-turn)
+  commission:
+    per_lot: 7.0
+    currency: "USD"
+    
+  # Financing Costs
+  financing:
+    overnight_rate: 0.02    # 2% annual
+    weekend_multiplier: 3   # Triple charge for weekends
+    
+  # Additional Costs
+  other_costs:
+    data_fees_per_month: 100
+    technology_costs_per_month: 500
+
+# Portfolio & Position Sizing
+portfolio:
+  initial_capital: 100000  # $100k starting capital
+  currency: "USD"
+  
+  # Position Sizing (Kelly Criterion from research)
+  position_sizing:
+    method: "kelly_fraction"
+    max_position_pct: 0.02   # 2% max position size
+    kelly_multiplier: 0.25   # Quarter Kelly for safety
+    min_position_size: 0.01  # Minimum 0.01 lots
+    
+  # Leverage
+  leverage:
+    max_leverage: 10.0
+    margin_requirement: 0.10
+
+# Risk Management
+risk:
+  # Stop Loss (from research: 1 x ATR)
+  stop_loss:
+    method: "atr_multiple"
+    atr_multiple: 1.0
+    max_stop_pips: 20
+    min_stop_pips: 5
+    
+  # Take Profit (from research: 1.5 x ATR) 
+  take_profit:
+    method: "atr_multiple"
+    atr_multiple: 1.5
+    max_tp_pips: 30
+    min_tp_pips: 10
+    
+  # Daily Loss Limit
+  daily_limits:
+    max_loss_pct: 0.02      # 2% daily loss limit
+    max_trades_per_day: 50
+    
+  # Session Filters (Critical per research)
+  session_filters:
+    allowed_sessions: ["london", "new_york", "overlap"]
+    blocked_sessions: ["asian"]
+    
+  # News Blackout (±5 min per research)
+  news_filter:
+    enabled: true
+    blackout_minutes_before: 5
+    blackout_minutes_after: 5
+    high_impact_only: true
+
+# Strategy Logic
+strategy:
+  # Entry Rules (from research synthesis)
+  entry:
+    probability_threshold: 0.65   # Model probability > 65%
+    confirmation_filters:
+      - "price_above_ema8"        # Trend filter
+      - "spread_below_threshold"   # Spread filter
+      
+  # Exit Rules
+  exit:
+    methods: ["stop_loss", "take_profit", "time_exit", "news_exit"]
+    time_exit_minutes: 15         # Max hold time
+    
+  # Position Management
+  position_management:
+    max_concurrent_positions: 3
+    correlation_limit: 0.5        # Max 50% correlation between positions
+    
+# Backtesting Engine
+engine:
+  # Execution
+  event_driven: true
+  tick_level_simulation: true
+  
+  # Performance
+  parallel_processing: false     # For deterministic results
+  memory_efficient: true
+  progress_reporting: true
+  
+  # Output
+  save_trades: true
+  save_daily_pnl: true
+  save_diagnostics: true
+
+# Performance Metrics
+metrics:
+  # Core Metrics
+  core:
+    - "total_return"
+    - "annualized_return" 
+    - "volatility"
+    - "sharpe_ratio"
+    - "sortino_ratio"
+    - "max_drawdown"
+    - "profit_factor"
+    
+  # Trading Metrics  
+  trading:
+    - "total_trades"
+    - "win_rate"
+    - "avg_win"
+    - "avg_loss"
+    - "avg_trade_duration"
+    - "expectancy"
+    
+  # Risk Metrics
+  risk:
+    - "var_95"              # Value at Risk
+    - "cvar_95"             # Conditional VaR
+    - "calmar_ratio"
+    - "sterling_ratio"
+    - "omega_ratio"
+    
+  # Microstructure Metrics (from research)
+  microstructure:
+    - "micro_sharpe"        # Target >= 1.8
+    - "hit_rate"            # Target >= 70%
+    - "avg_latency_ms"
+    - "fill_rate"
+
+# Benchmarking
+benchmarks:
+  - name: "buy_and_hold"
+    description: "Simple buy and hold"
+    
+  - name: "moving_average_crossover"
+    description: "5/13 EMA crossover baseline"
+    
+  - name: "random_entry"
+    description: "Random entry with same risk management"
+
+# Stress Testing
+stress_tests:
+  # Market Scenarios
+  scenarios:
+    - name: "2020_covid_crash"
+      start_date: "2020-03-01"
+      end_date: "2020-04-30"
+      
+    - name: "high_volatility"
+      volatility_multiplier: 2.0
+      
+    - name: "wide_spreads"
+      spread_multiplier: 3.0
+      
+  # Parameter Sensitivity
+  sensitivity_analysis:
+    parameters:
+      - "probability_threshold"
+      - "atr_multiple_stop"
+      - "atr_multiple_tp"
+      - "position_size_pct"
+    ranges:
+      probability_threshold: [0.55, 0.75]
+      atr_multiple_stop: [0.5, 2.0]
+      atr_multiple_tp: [1.0, 3.0]
+      position_size_pct: [0.01, 0.05]
+
+# Reporting
+reporting:
+  # Output Formats
+  formats: ["html", "pdf", "json"]
+  
+  # Report Sections
+  sections:
+    - "executive_summary"
+    - "performance_overview"
+    - "trade_analysis" 
+    - "risk_analysis"
+    - "factor_attribution"
+    - "stress_test_results"
+    
+  # Visualization
+  plots:
+    - "equity_curve"
+    - "drawdown_chart"
+    - "monthly_returns"
+    - "trade_distribution"
+    - "pnl_attribution"
+    - "feature_importance"
+    
+  # Comparison
+  benchmark_comparison: true
+  peer_comparison: false
+
+# Optimization
+optimization:
+  # Walk-Forward Optimization
+  walk_forward:
+    enabled: true
+    train_periods: 252      # Trading days
+    test_periods: 63       # Quarter
+    step_size: 21          # Monthly steps
+    
+  # Parameter Optimization
+  parameter_optimization:
+    method: "optuna"
+    objective: "sharpe_ratio"
+    n_trials: 200
+    timeout_hours: 24
+    
+  # Multi-Objective
+  multi_objective:
+    enabled: false
+    objectives: ["sharpe_ratio", "max_drawdown"]
+
+# Data Export
+export:
+  trade_log:
+    format: "csv"
+    include_features: true
+    
+  performance_metrics:
+    format: "json"
+    
+  model_predictions:
+    format: "parquet"
+    
+# Debugging
+debug:
+  verbose_logging: false
+  save_intermediate_data: false
+  plot_trades: false
+  interactive_mode: false

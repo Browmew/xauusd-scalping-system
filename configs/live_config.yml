@@ -1,0 +1,361 @@
+# Live Trading Configuration
+
+# Trading Mode
+mode: "paper"  # "paper" or "live"
+
+# Broker Configuration
+broker:
+  name: "interactive_brokers"  # Generic broker interface
+  
+  # API Configuration
+  api:
+    host: "127.0.0.1"
+    port: 7497  # Paper trading port (7496 for live)
+    client_id: 1
+    timeout_seconds: 30
+    
+  # Account
+  account:
+    account_id: "DU123456"  # Paper account
+    currency: "USD"
+    
+  # Market Data
+  market_data:
+    real_time: true
+    tick_data: true
+    order_book_levels: 5
+    
+# Symbol Configuration
+symbol:
+  primary: "XAUUSD"
+  exchange: "IDEALPRO"  # For FX
+  contract_type: "forex"
+  lot_size: 100000  # Standard lot
+  min_tick: 0.01
+  currency: "USD"
+
+# Data Feeds
+feeds:
+  # Primary Price Feed
+  price:
+    provider: "broker"  # Use broker feed
+    websocket: true
+    tick_data: true
+    heartbeat_seconds: 30
+    
+  # Order Book Feed
+  orderbook:
+    provider: "broker"
+    levels: 5
+    update_frequency_ms: 100
+    
+  # News Feed
+  news:
+    provider: "forexfactory"
+    importance_filter: ["high", "medium"]
+    auto_blackout: true
+    
+# Strategy Configuration
+strategy:
+  # Model Serving
+  model:
+    path: "./data/models/latest"
+    format: "joblib"
+    reload_frequency_hours: 24
+    
+  # Feature Computation (< 50ms target)
+  features:
+    update_frequency_ms: 100
+    batch_size: 10
+    cache_enabled: true
+    
+    # Priority features for speed
+    priority_features:
+      - "hma_5"
+      - "obi_5_level"
+      - "gkyz_volatility"
+      - "atr_14"
+      
+  # Signal Generation
+  signals:
+    probability_threshold: 0.65
+    confirmation_required: true
+    
+    # Signal filters
+    filters:
+      session_filter: true
+      spread_filter: true
+      news_filter: true
+      volatility_filter: true
+
+# Execution Configuration
+execution:
+  # Order Management
+  order_management:
+    order_type: "limit"  # Default order type
+    timeout_seconds: 30
+    max_slippage_pips: 2.0
+    
+  # Position Sizing
+  position_sizing:
+    method: "kelly_fraction"
+    max_position_pct: 0.02
+    kelly_multiplier: 0.25
+    min_position_size: 0.01
+    
+  # Risk Management
+  risk_management:
+    stop_loss_atr: 1.0
+    take_profit_atr: 1.5
+    max_hold_minutes: 15
+    
+# Performance Monitoring (< 50ms total latency)
+performance:
+  # Latency Monitoring
+  latency:
+    target_ms: 50
+    alert_threshold_ms: 75
+    log_latency: true
+    
+    # Breakdown targets
+    data_processing_ms: 20
+    feature_computation_ms: 15
+    model_inference_ms: 10
+    order_submission_ms: 5
+    
+  # Memory Monitoring
+  memory:
+    target_mb: 200
+    alert_threshold_mb: 300
+    garbage_collect_frequency: 100
+    
+  # CPU Monitoring
+  cpu:
+    target_usage_pct: 50
+    alert_threshold_pct: 80
+
+# Risk Management (from research synthesis)
+risk:
+  # Daily Limits
+  daily_limits:
+    max_loss_pct: 0.02
+    max_trades: 50
+    max_turnover: 1000000  # $1M daily turnover
+    
+  # Position Limits
+  position_limits:
+    max_exposure_pct: 0.10   # 10% of capital
+    max_correlation: 0.5
+    
+  # Circuit Breakers
+  circuit_breakers:
+    consecutive_losses: 5
+    drawdown_threshold_pct: 0.03
+    volatility_multiplier: 3.0
+    
+  # Session Filters (Critical per research)
+  session_filters:
+    london:
+      enabled: true
+      start_utc: "08:00"
+      end_utc: "17:00"
+      
+    new_york:
+      enabled: true  
+      start_utc: "13:00"
+      end_utc: "22:00"
+      
+    overlap:
+      enabled: true
+      start_utc: "13:00"
+      end_utc: "17:00"
+      priority: true
+      
+    asian:
+      enabled: false  # Blocked per research
+      
+  # News Filter (±5 min blackout)
+  news_filter:
+    blackout_before_minutes: 5
+    blackout_after_minutes: 5
+    high_impact_only: true
+    auto_resume: true
+
+# Health Monitoring
+health:
+  # System Health
+  system:
+    cpu_threshold_pct: 80
+    memory_threshold_pct: 80
+    disk_threshold_pct: 90
+    
+  # Feed Health
+  feeds:
+    max_latency_ms: 1000
+    max_gap_seconds: 10
+    heartbeat_required: true
+    
+  # Strategy Health
+  strategy:
+    max_prediction_time_ms: 30
+    feature_staleness_seconds: 5
+    model_accuracy_threshold: 0.6
+
+# Logging & Monitoring
+logging:
+  # Log Levels
+  level: "INFO"
+  
+  # Log Targets
+  console: true
+  file: true
+  structured: true
+  
+  # What to Log
+  log_trades: true
+  log_signals: true
+  log_latency: true
+  log_features: false  # Too verbose for production
+  
+  # Log Rotation
+  rotation: "daily"
+  retention_days: 30
+  
+# Alerting
+alerting:
+  # Alert Channels
+  channels:
+    email: true
+    slack: false
+    pagerduty: false
+    
+  # Alert Types
+  alerts:
+    system_failure: "critical"
+    feed_failure: "critical" 
+    risk_breach: "critical"
+    high_latency: "warning"
+    low_performance: "warning"
+    
+  # Alert Frequency
+  throttling:
+    max_alerts_per_hour: 10
+    repeat_delay_minutes: 15
+
+# Persistence
+persistence:
+  # Trade Database
+  trades:
+    database_type: "postgresql"
+    connection_string: "postgresql://user:pass@localhost/trades"
+    table_name: "live_trades"
+    
+  # Time Series Data
+  timeseries:
+    database_type: "timescaledb"
+    connection_string: "postgresql://user:pass@localhost/timeseries"
+    
+  # Model Storage
+  models:
+    path: "./data/models"
+    backup_frequency_hours: 24
+    
+# API Configuration  
+api:
+  # REST API for monitoring
+  rest:
+    enabled: true
+    host: "0.0.0.0"
+    port: 8000
+    
+  # WebSocket for real-time updates
+  websocket:
+    enabled: true
+    port: 8001
+    
+  # Authentication
+  auth:
+    enabled: true
+    api_key_required: true
+
+# Development & Testing
+development:
+  # Paper Trading
+  paper_trading:
+    enabled: true
+    virtual_balance: 100000
+    realistic_slippage: true
+    
+  # Debug Mode
+  debug:
+    enabled: false
+    save_raw_data: false
+    plot_signals: false
+    
+  # Simulation
+  simulation:
+    replay_mode: false
+    replay_speed: 1.0
+    replay_start_date: null
+
+# Backup & Recovery
+backup:
+  # Data Backup
+  data_backup:
+    enabled: true
+    frequency_hours: 6
+    retention_days: 30
+    
+  # Model Backup
+  model_backup:
+    enabled: true
+    frequency_hours: 24
+    retention_days: 90
+    
+  # Configuration Backup
+  config_backup:
+    enabled: true
+    frequency_hours: 24
+    git_commit: true
+
+# Compliance
+compliance:
+  # Trade Reporting
+  trade_reporting:
+    enabled: true
+    format: "FIX"
+    destination: "regulator"
+    
+  # Audit Trail
+  audit_trail:
+    enabled: true
+    immutable_log: true
+    
+  # Position Reporting
+  position_reporting:
+    enabled: true
+    frequency_minutes: 15
+
+# Disaster Recovery
+disaster_recovery:
+  # Failover
+  failover:
+    enabled: false
+    backup_location: "aws"
+    auto_failover: false
+    
+  # Data Recovery
+  data_recovery:
+    backup_location: "s3://xauusd-backups"
+    recovery_time_objective_hours: 1
+    
+# Environment
+environment:
+  # Production vs Staging
+  env: "staging"  # "production", "staging", "development"
+  
+  # Feature Flags
+  feature_flags:
+    advanced_features: true
+    experimental_models: false
+    high_frequency_mode: false

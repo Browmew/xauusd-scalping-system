@@ -1,0 +1,255 @@
+# Feature Engineering Configuration
+
+# Feature Selection Mode
+mode: "extended"  # "minimal" or "extended"
+
+# Minimal Subset (6 features - preserves ~85% of Sharpe, halves latency)
+minimal_features:
+  - "hma_5"           # Hull Moving Average 5-period
+  - "gkyz_volatility" # Garman-Klass-Yang-Zhang volatility
+  - "obi_5_level"     # 5-level Order Book Imbalance
+  - "vpvr_breakout"   # Volume Profile Visible Range breakout
+  - "liquidity_sweep" # Liquidity sweep reversal flag
+  - "atr_14"          # Average True Range 14-period
+
+# Extended Catalog (200+ engineered features)
+feature_groups:
+  
+  # Trend & Momentum (30 features)
+  trend_momentum:
+    moving_averages:
+      - type: "ema"
+        periods: [3, 5, 8, 13, 21, 34, 55]
+      - type: "sma"
+        periods: [5, 10, 20, 50]
+      - type: "hma"  # Hull Moving Average
+        periods: [5, 10, 20]
+      - type: "tema" # Triple Exponential MA
+        periods: [8, 21]
+        
+    momentum_oscillators:
+      - type: "rsi"
+        periods: [7, 14, 21]
+        overbought: 70
+        oversold: 30
+      - type: "williams_r"  # Outperforms peers per Claude research
+        period: 14
+      - type: "macd"
+        fast: 12
+        slow: 26
+        signal: 9
+      - type: "stochastic"
+        k_period: 14
+        d_period: 3
+        
+  # Volatility & Range (25 features)  
+  volatility:
+    range_indicators:
+      - type: "atr"
+        periods: [7, 14, 21]
+      - type: "true_range"
+      - type: "high_low_ratio"
+        
+    volatility_estimators:
+      - type: "gkyz"  # Garman-Klass-Yang-Zhang
+        periods: [20, 60]
+      - type: "parkinson"
+        periods: [20, 60] 
+      - type: "rogers_satchell"
+        periods: [20, 60]
+      - type: "realized_vol"
+        periods: [20, 60]
+        
+    bollinger_bands:
+      - period: 20
+        std_dev: 2.0
+        features: ["percent_b", "bandwidth", "squeeze"]
+        
+  # Order Flow & Microstructure (40 features)
+  order_flow:
+    book_imbalance:
+      - type: "obi"  # Order Book Imbalance
+        levels: [1, 3, 5, 10]
+      - type: "microprice"
+        levels: [1, 3, 5]
+      - type: "bid_ask_spread"
+        relative: true
+        
+    volume_analysis:
+      - type: "cvd"  # Cumulative Volume Delta
+        periods: [20, 60, 240]
+      - type: "vwap"
+        periods: [20, 60, 240]
+        anchored: true
+      - type: "volume_profile"
+        poc_distance: true
+        value_area: 0.7
+        
+    trade_intensity:
+      - type: "trade_rate"
+        periods: [10, 30, 60]
+      - type: "avg_trade_size"
+        periods: [10, 30, 60]
+      - type: "buy_sell_ratio"
+        periods: [10, 30, 60]
+        
+  # Market Structure (30 features)
+  market_structure:
+    price_levels:
+      - type: "support_resistance"
+        lookback: 100
+        strength: 3
+      - type: "pivot_points"
+        types: ["standard", "fibonacci", "camarilla"]
+      - type: "previous_high_low"
+        periods: [1, 5, 20]
+        
+    patterns:
+      - type: "higher_highs_lows"
+        period: 20
+      - type: "liquidity_sweeps"
+        threshold_pips: 5
+      - type: "fair_value_gaps"
+        min_gap_pips: 2
+        
+  # Volume Profile (20 features)
+  volume_profile:
+    vpvr:  # Volume Profile Visible Range
+      - lookback_bars: 100
+        features: ["poc", "value_area_high", "value_area_low"]
+      - breakout_detection: true
+        breakout_threshold: 2.0
+        
+    vwap_variants:
+      - type: "session_vwap"
+      - type: "weekly_vwap" 
+      - type: "monthly_vwap"
+      - deviations: [0.5, 1.0, 1.5, 2.0]
+      
+  # Smart Money Concepts (25 features)
+  smc:
+    liquidity:
+      - type: "equal_highs_lows"
+        tolerance_pips: 3
+      - type: "liquidity_sweep"
+        confirmation_bars: 3
+      - type: "inducement"
+        
+    structure:
+      - type: "break_of_structure"
+      - type: "change_of_character"  
+      - type: "market_structure_shift"
+      - type: "order_blocks"
+        lookback: 20
+        
+  # Cross-Asset & Macro (15 features)
+  cross_asset:
+    correlations:
+      - asset: "DXY"
+        periods: [20, 60]
+        features: ["correlation", "beta"]
+      - asset: "TIPS"
+        periods: [20, 60] 
+        features: ["correlation", "spread"]
+      - asset: "SPY"
+        periods: [20, 60]
+        features: ["correlation"]
+        
+    macro_factors:
+      - type: "interest_rate_differential"
+      - type: "risk_sentiment"
+        proxy: "VIX"
+        
+  # Regime & Session (15 features)
+  regime:
+    session_filters:
+      - type: "london_session"
+      - type: "ny_session"
+      - type: "london_ny_overlap"
+      - type: "asian_session"
+      
+    volatility_regimes:
+      - type: "gkyz_regime"
+        threshold_percentile: 75
+      - type: "volume_regime"
+        threshold_percentile: 75
+        
+    time_features:
+      - type: "hour_of_day"
+        encoding: "cyclical"
+      - type: "day_of_week" 
+        encoding: "cyclical"
+      - type: "time_to_news"
+        max_minutes: 30
+
+# Feature Engineering Parameters
+parameters:
+  # Computation
+  compute_parallel: true
+  n_workers: 8
+  chunk_size: 10000
+  
+  # Caching
+  cache_features: true
+  cache_ttl_hours: 24
+  
+  # Memory Management
+  use_polars: true  # Fast dataframe library
+  lazy_evaluation: true
+  memory_limit_gb: 16
+  
+  # Quality Control
+  outlier_removal:
+    method: "iqr"
+    multiplier: 3.0
+  
+  normalization:
+    method: "robust"  # Robust to outliers
+    clip_percentiles: [1, 99]
+    
+  missing_data:
+    forward_fill_limit: 5
+    interpolation_method: "linear"
+    
+# Real-time Feature Computation
+realtime:
+  update_frequency_ms: 100
+  batch_size: 10
+  priority_features: # Compute these first for minimal latency
+    - "hma_5"
+    - "obi_5_level" 
+    - "gkyz_volatility"
+    - "atr_14"
+    
+  performance_targets:
+    max_latency_ms: 20
+    max_memory_mb: 200
+    
+# Feature Selection & Pruning  
+selection:
+  methods:
+    - "shap_importance"
+    - "permutation_importance"
+    - "correlation_pruning"
+    
+  thresholds:
+    min_importance: 0.001
+    max_correlation: 0.95
+    
+  auto_prune:
+    enabled: true
+    retrain_frequency: "monthly"
+    
+# Output Configuration
+output:
+  format: "parquet"
+  compression: "snappy"
+  float_precision: "float32"  # Memory optimization
+  
+  feature_store:
+    enabled: true
+    backend: "feast"  # Feature store for serving
+    
+  monitoring:
+    drift_detection: true
+    alert_threshold: 0.1
