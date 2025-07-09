@@ -1,0 +1,11 @@
+# Additional Docker-specific requirements
+psycopg2-binary==2.9.7
+asyncpg==0.28.0
+redis==4.6.0
+prometheus-client==0.17.1
+gunicorn==21.2.0
+uvicorn[standard]==0.23.2
+websockets==11.0.3
+aiohttp==3.8.5
+aiofiles==23.2.1
+python-multipart==0.0.6

@@ -1,0 +1,217 @@
+version: '3.8'
+
+services:
+  # Database services
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: xauusd_timescaledb
+    environment:
+      POSTGRES_DB: xauusd_data
+      POSTGRES_USER: trader
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-trading123}
+      POSTGRES_HOST_AUTH_METHOD: md5
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - trading_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trader -d xauusd_data"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: xauusd_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - trading_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Data collection service
+  data_collector:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: production
+    container_name: xauusd_data_collector
+    environment:
+      - PYTHONPATH=/app
+      - CONFIG_ENV=production
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./configs:/app/configs
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - trading_network
+    command: ["python", "scripts/data_collector.py"]
+    restart: unless-stopped
+
+  # Model training service
+  trainer:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: trainer
+    container_name: xauusd_trainer
+    environment:
+      - PYTHONPATH=/app
+      - CONFIG_ENV=production
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./models:/app/models
+      - ./configs:/app/configs
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - trading_network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles:
+      - training
+
+  # Backtesting service
+  backtester:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: backtester
+    container_name: xauusd_backtester
+    environment:
+      - PYTHONPATH=/app
+      - CONFIG_ENV=production
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./models:/app/models
+      - ./configs:/app/configs
+      - ./results:/app/results
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    networks:
+      - trading_network
+    profiles:
+      - backtesting
+
+  # Live trading service
+  live_trader:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: live
+    container_name: xauusd_live_trader
+    environment:
+      - PYTHONPATH=/app
+      - CONFIG_ENV=production
+      - TRADING_MODE=paper  # Set to 'live' for real trading
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./models:/app/models
+      - ./configs:/app/configs
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - trading_network
+    ports:
+      - "8000:8000"  # API port
+      - "8001:8001"  # WebSocket port
+    profiles:
+      - live
+
+  # Monitoring and visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: xauusd_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana:/etc/grafana/provisioning
+    depends_on:
+      - timescaledb
+    networks:
+      - trading_network
+    profiles:
+      - monitoring
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: xauusd_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - trading_network
+    profiles:
+      - monitoring
+
+  # Jupyter notebook for analysis
+  jupyter:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: development
+    container_name: xauusd_jupyter
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - PYTHONPATH=/app
+    volumes:
+      - ./notebooks:/app/notebooks
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./src:/app/src
+    command: >
+      bash -c "
+        jupyter lab --ip=0.0.0.0 --port=8888 --no-browser 
+        --allow-root --NotebookApp.token='' --NotebookApp.password=''
+      "
+    networks:
+      - trading_network
+    profiles:
+      - development
+
+networks:
+  trading_network:
+    driver: bridge
+
+volumes:
+  timescale_data:
+  redis_data:
+  grafana_data:
+  prometheus_data:
